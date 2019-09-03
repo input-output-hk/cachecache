@@ -1,54 +1,60 @@
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE FlexibleContexts   #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE PolyKinds          #-}
-{-# LANGUAGE TypeOperators      #-}
-{-# LANGUAGE TypeApplications   #-}
-{-# LANGUAGE NamedFieldPuns     #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns    #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds         #-}
+{-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE TypeOperators     #-}
 
 module Main (main, rateToString) where
 
+import           Control.Concurrent.MVar
+                 (MVar, newEmptyMVar, putMVar, takeMVar)
 import           Control.Concurrent.STM
                  (STM, TVar, atomically, modifyTVar', newTVarIO, readTVar)
+import           Control.Exception         (catch)
 import           Control.Monad
-import           Control.Monad.Trans      (liftIO)
-import           Control.Exception        (catch)
-import           Control.Concurrent.MVar  (MVar, putMVar, takeMVar, newEmptyMVar)
-import qualified Data.ByteString          as BS hiding (hPutStrLn, pack)
-import qualified Data.ByteString.Lazy     as LBS
-import qualified Data.HashMap.Strict      as HM
+import           Control.Monad.Trans       (liftIO)
+import qualified Data.ByteString           as BS hiding (hPutStrLn, pack)
+import qualified Data.ByteString.Lazy      as LBS
+import qualified Data.HashMap.Strict       as HM
                  (HashMap, delete, empty, insert, lookup)
-import           Data.Monoid              ((<>))
-import           Data.Text                (Text, pack, stripSuffix)
-import qualified Data.Text.Lazy           as LT
+import           Data.Monoid               ((<>))
+import           Data.Text                 (Text, pack, stripSuffix)
+import qualified Data.Text.Lazy            as LT
                  (Text, length, pack, stripSuffix, unpack)
-import qualified Data.Text.Lazy.Encoding  as LT
+import qualified Data.Text.Lazy.Encoding   as LT
 --import           Debug.Trace              (trace)
-import           GHC.Conc                 (unsafeIOToSTM, forkIO, threadDelay, killThread)
-import           GHC.TypeLits             (KnownSymbol, Symbol, symbolVal)
-import           Network.Wai              (Application)
-import           Network.Wai.Handler.Warp (defaultSettings, setPort, runSettings, setTimeout)
-import           Network.HTTP.Client.TLS  (tlsManagerSettings)
-import           Network.HTTP.Client      (newManager, Manager, httpLbs, host, path, defaultRequest, secure, port, Response, responseStatus, responseBody)
+import           GHC.Conc
+                 (forkIO, killThread, threadDelay, unsafeIOToSTM)
+import           GHC.TypeLits              (KnownSymbol, Symbol, symbolVal)
+import           Network.HTTP.Client
+                 (Manager, Response, defaultRequest, host, httpLbs, newManager,
+                 path, port, responseBody, responseStatus, secure)
+import           Network.HTTP.Client.TLS   (tlsManagerSettings)
 import           Network.HTTP.Types.Status (statusCode)
+import           Network.Wai               (Application)
+import           Network.Wai.Handler.Warp
+                 (defaultSettings, runSettings, setPort, setTimeout)
 import           Servant
                  ((:<|>) (..), (:>), Capture, FromHttpApiData, Get, Handler,
-                 OctetStream, Proxy (Proxy), Server, err404, err500,
-                 errBody, parseHeader, parseQueryParam, parseUrlPiece, serve,
+                 OctetStream, Proxy (Proxy), Server, err404, err500, errBody,
+                 parseHeader, parseQueryParam, parseUrlPiece, serve,
                  throwError)
 
 --import           Crypto.Hash.Algorithms   (SHA256)
 --import qualified Pipes.ByteString         as PB
-import           System.CPUTime           (getCPUTime)
+import           System.CPUTime            (getCPUTime)
 --import           System.Posix.Signals     (installHandler, keyboardSignal)
 --import qualified System.Posix.Signals     as Signals
-import           System.TimeIt            (timeItT)
-import           System.Directory         (doesDirectoryExist, createDirectory, doesFileExist)
+import           System.Directory
+                 (createDirectory, doesDirectoryExist, doesFileExist)
+import           System.TimeIt             (timeItT)
 --import qualified Testing                  as T
-import           System.IO.Error          (isAlreadyInUseError)
-import           LogUtils                 (logMsg)
-import           Control.Monad.Extra      (unlessM)
+import           Control.Monad.Extra       (unlessM)
+import           LogUtils                  (logMsg)
+import           System.IO.Error           (isAlreadyInUseError)
 
 --------------------------------------------------------------------------------
 
@@ -83,9 +89,9 @@ data CacheStyle = CacheNarSub
 
 data CacheCache
   = CacheCache
-  { narinfoCache :: TVar (HM.HashMap LT.Text NarInfoCacheEntry)
+  { narinfoCache   :: TVar (HM.HashMap LT.Text NarInfoCacheEntry)
   , upstreamCaches :: [ (Bool, BS.ByteString, Int, CacheStyle) ]
-  , manager :: Manager
+  , manager        :: Manager
   }
 
 data RequestType
@@ -227,7 +233,7 @@ main = do
     cache :: CacheCache
     cache = CacheCache t1 [
         (True, "cache.nixos.org", 443, CacheNarSub)
-      , (True, "iohk-nix-cache.s3-eu-central-1.amazonaws.com", 443, CacheNarSub)
+      , (True, "iohk-nix-cache-temp.s3-eu-central-1.amazonaws.com", 443, CacheNarSub)
       ] manager
   unlessM (doesDirectoryExist "cachedir") (createDirectory "cachedir")
   logMsg @String "started"
